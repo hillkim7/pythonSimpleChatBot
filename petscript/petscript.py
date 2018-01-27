@@ -51,7 +51,7 @@ class Scenario:
         self.script_list = []
 
     def load_scenario_file(self, csv_file):
-        with open(csv_file, 'r') as fd:
+        with open(csv_file, 'r', encoding='euc_kr') as fd:
             reader = csv.DictReader(fd)
             for row in reader:
                 if row['키워드']:
