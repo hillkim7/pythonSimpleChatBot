@@ -7,11 +7,15 @@ Created on 2018. 1. 28.
 import csv
 import unittest
 import sys
+import random
 
 class Answer:
-    def __init__(self, answer, emotion=None):
-        self.answer = answer
+    def __init__(self, text, emotion=None):
+        self.text = text
         self.emotion = emotion
+    
+    def __str__(self):
+        return str((self.text, self.emotion))
 
 class PetScript:
     def __init__(self, question, keywords, answers, emotions):
@@ -45,6 +49,17 @@ class PetScript:
     
     def __str__(self):
         return 'keywords:' + ','.join(self.keywords)
+    
+    def scores(self, morphs):
+        score = 0
+        for m in morphs:
+            if m in self.keywords:
+                score += 1
+        return score
+    
+    def best_answer(self):
+        return random.choice(self.answers)
+
 
 class Scenario:
     def __init__(self):
@@ -61,60 +76,36 @@ class Scenario:
         #reader = csv.reader(doc_text, delimiter=',', quotechar='"')
         reader = csv.reader(doc_text)
         for row in reader:
-            print('row', row)
-            #self.script_list.append(PetScript(row['질문'], row['키워드'], row['답변'], row['상태']))
+            #print('row', row)
+            self.script_list.append(PetScript(row['질문'], row['키워드'], row['답변'], row['상태']))
             
     def dump(self):
         for script in self.script_list:
             print(script.__str__())
-                
+    
+    def make_score_table(self, morphs):
+        scores = []
+        for script in self.script_list:
+            scores.append(script.scores(morphs))
+        return scores
+
+    def find_top_score(self, scores):
+        top = 0
+        for i in range(1, len(scores)):
+            if scores[i] > scores[top]:
+                top = i
+        return top
+
+    def answer_please(self, input_morphs):
+        scores = self.make_score_table(input_morphs)
+        top_pos = self.find_top_score(scores)
+        if scores[top_pos] > 0:
+            pet_script = self.script_list[top_pos]
+            return pet_script.best_answer()
+
 class TestPetScript(unittest.TestCase):
     def __init__(self, *args, **kwargs):
         super(TestPetScript, self).__init__(*args, **kwargs)
-        self.scenario = Scenario()
-        self.scenario.load_scenario_text(
-"""구분,질문,키워드,답변,상태,기타
-일상,밥 먹었어?,"밥,먹","아닝 저는 밥 대신 물을 마시는 걸요!,
-추워서 별로 안땡겨요?(?´0`?)?,
-저는 2-3일에 한번만 먹으면 돼요! 그저께 먹었으니까 내일 밥 주세요!,
-난 정수기 물 보다 미네랄 많은 수돗물이 맛있더라(?>?<?)~,
-싫어싫어! 안먹을거야! 아직 물 충분하단 말야(?'-'?),
-오늘따라 물 맛이 좋더라구요~,
-맛있게 먹었는데 오늘 날씨가 더워서 더 먹고싶어요ㅠㅠ,
-식량창고에 물 채워줘요! 얼마 안남았다구!,
-( ??∀?? )?전 물을 자주 먹지 않는다구요~,
-저는 물 꼬박꼬박 잘 챙겨먹고있죠~ {{name}}님은 물 많이 드시고 계신가요??,
-요새 통 입맛이 없어가지구~.....,
-냠냠!(?????) 잘 챙겨먹고 있어용!,
-{{name}}님은 식사하셨어요?","smile,
-gloom,
-cute,
-cute,
-angry,
-smile,
-sad,
-fun,
-smile,
-smile,
-gloom,
-excited,
-smile",
-일상,오늘은 뭐했어?,"뭐,뭐했","날씨가 좋아서 햇볕을 쬐고 있었어요(((o(♡´▽`♡)o))),
-{{name}}님을 기다리고 있었죠~,
-쑥쑥 자라고 있었어요ㅎㅎ,
-(??? )흥! 늦게 왔으니까 말 안해줄래요!,
-흙이랑 얘기했어요!,
-벌이 다녀갔어요!,
-바람이 불어서 간지러웠어요~,
-가만히 있기 놀이했어요! {{name}}님은 뭐하셨어요~?","excited,
-smile,
-smile,
-angry,
-cute,
-smile,
-fun,
-cute","""
-            )
         
     def test_inputs(self):
         question = "밥 먹었어?"
@@ -128,6 +119,30 @@ cute","""
         emotions = "smile,gloom,cute,cute,angry,smile"
         script = PetScript(question, keywords, answers, emotions)
         self.assertIn('밥', script.keywords)
+
+    def test_best_answer(self):
+        scenario = Scenario()
+        scenario.script_list.append(PetScript('q1', 'K1, K2, K3', '0', 'E1'))
+        scenario.script_list.append(PetScript('q1', 'K3, K4, K5', '1', 'E2'))
+        scenario.script_list.append(PetScript('q1', 'K5, K6', '2', 'E3'))
+        answer = scenario.answer_please(['K3', 'K4', 'K6'])
+        self.assertIn('1', answer.text)
+
+    def test_best_answer2(self):
+        scenario = Scenario()
+        scenario.script_list.append(PetScript('q1', 'K1, K2, K3', '0', 'E1'))
+        scenario.script_list.append(PetScript('q1', 'K3, K4, K5', '1', 'E2'))
+        scenario.script_list.append(PetScript('q1', 'K5, K6', '2', 'E3'))
+        answer = scenario.answer_please(['K6'])
+        self.assertIn('2', answer.text)
+
+    def test_none_answer(self):
+        scenario = Scenario()
+        scenario.script_list.append(PetScript('q1', 'K1, K2, K3', '0', 'E1'))
+        scenario.script_list.append(PetScript('q1', 'K3, K4, K5', '1', 'E2'))
+        scenario.script_list.append(PetScript('q1', 'K5, K6', '2', 'E3'))
+        answer = scenario.answer_please(['K7'])
+        self.assertEqual(None, answer)
 
 if __name__ == "__main__":
     scenario = Scenario()
